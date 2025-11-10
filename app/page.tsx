@@ -42,6 +42,26 @@ export default function Home() {
           </Link>
         </div>
 
+        <div className="mt-8 pt-8 border-t border-gray-300">
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">관리자 메뉴</h3>
+          <div className="flex gap-4 justify-center">
+            <Link
+              href="/upload"
+              className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg shadow-md hover:shadow-lg hover:bg-purple-700 transition-all"
+            >
+              <h2 className="text-base font-semibold mb-1">⚙️ 데이터 업로드</h2>
+              <p className="text-xs text-purple-100">학생 데이터 CSV</p>
+            </Link>
+            <Link
+              href="/materials"
+              className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:shadow-lg hover:bg-indigo-700 transition-all"
+            >
+              <h2 className="text-base font-semibold mb-1">📚 교안 관리</h2>
+              <p className="text-xs text-indigo-100">AI 튜터용 교안</p>
+            </Link>
+          </div>
+        </div>
+
         <div className="mt-12 pt-8 border-t border-gray-200">
           <p className="text-sm text-gray-500">
             Version 0.1.0 (MVP) - Built with Next.js 15 + TypeScript
