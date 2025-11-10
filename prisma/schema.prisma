@@ -1,0 +1,148 @@
+// Prisma schema for COMPASS AI Learning Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 학생 정보
+model Student {
+  id          Int      @id @default(autoincrement())
+  studentId   String   @unique // 학번
+  name        String
+  email       String?
+  department  String?
+  grade       Int?     // 학년
+
+  // JSON으로 역량 데이터 저장 (MVP용 간단한 방식)
+  // { "creativity": 75, "collaboration": 82, "problemSolving": 68 }
+  competencies String  // JSON string
+
+  enrollments CourseEnrollment[]
+  chatLogs    ChatLog[]
+  recommendations Recommendation[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 과목 정보
+model Course {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique // 과목 코드
+  name        String
+  description String?
+  credits     Int?     // 학점
+  department  String?
+
+  // 이 과목이 어떤 역량을 키우는지 (JSON)
+  // { "creativity": 0.8, "problemSolving": 0.6 }
+  competencyWeights String // JSON string
+
+  enrollments CourseEnrollment[]
+  materials   CourseMaterial[]
+  recommendations Recommendation[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 수강 정보
+model CourseEnrollment {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  courseId   Int
+  semester   String   // 예: "2024-1"
+  grade      String?  // 성적
+
+  student    Student  @relation(fields: [studentId], references: [id])
+  course     Course   @relation(fields: [courseId], references: [id])
+
+  createdAt  DateTime @default(now())
+
+  @@unique([studentId, courseId, semester])
+}
+
+// 교안/교재 자료
+model CourseMaterial {
+  id         Int      @id @default(autoincrement())
+  courseId   Int
+  filename   String
+  title      String?
+
+  // PDF/문서에서 추출한 텍스트 내용
+  content    String   // TEXT 타입
+
+  // 벡터 임베딩 ID (ChromaDB 등 외부 벡터DB 참조용)
+  embeddingId String?
+
+  course     Course   @relation(fields: [courseId], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// AI 튜터 채팅 로그
+model ChatLog {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  courseId   Int?     // 어떤 과목에 대한 질문인지
+
+  question   String
+  answer     String
+
+  // RAG에서 사용한 소스 문서들 (JSON array)
+  sources    String?  // JSON string
+
+  // 답변 신뢰도/품질 점수
+  confidence Float?
+
+  student    Student  @relation(fields: [studentId], references: [id])
+
+  createdAt  DateTime @default(now())
+}
+
+// AI 과목 추천 기록
+model Recommendation {
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  courseId   Int
+
+  // AI가 생성한 추천 이유
+  reason     String
+
+  // 추천 점수 (0.0 ~ 1.0)
+  score      Float
+
+  // 교수자 검증 상태 (나중에 구현)
+  status     String   @default("pending") // pending, approved, rejected
+
+  student    Student  @relation(fields: [studentId], references: [id])
+  course     Course   @relation(fields: [courseId], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// 사용 통계 (토큰 사용량 등)
+model UsageStats {
+  id         Int      @id @default(autoincrement())
+  date       DateTime @default(now())
+
+  // API 사용 통계
+  apiCalls   Int      @default(0)
+  tokensUsed Int      @default(0)
+
+  // 기능별 사용량
+  chatCount  Int      @default(0)
+  recommendCount Int  @default(0)
+
+  // 비용 추정 (달러)
+  estimatedCost Float @default(0.0)
+
+  @@unique([date])
+}
