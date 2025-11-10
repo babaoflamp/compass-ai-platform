@@ -1,0 +1,6 @@
+studentId,name,email,department,grade,creativity,collaboration,problemSolving
+20240001,홍길동,hong@example.com,컴퓨터공학과,2,75,82,68
+20240002,김철수,kim@example.com,경영학과,3,88,76,91
+20240003,이영희,lee@example.com,디자인학과,1,92,85,73
+20240004,박민수,park@example.com,기계공학과,4,70,88,95
+20240005,정수연,jung@example.com,화학공학과,2,85,79,82
