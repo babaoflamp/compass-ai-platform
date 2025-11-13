@@ -140,12 +140,22 @@ ${topCourses.map((c, i) => `${i + 1}. ${c.name} (${c.code}) - 매칭 점수: ${c
 
     const aiResponse = completion.content || '{}'
 
-    // JSON 파싱 시도
+    // JSON 파싱 시도 (마크다운 코드 블록 제거)
     let aiRecommendations: any = { recommendations: [] }
     try {
-      aiRecommendations = JSON.parse(aiResponse)
+      // 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
+      let cleanedResponse = aiResponse.trim()
+      if (cleanedResponse.startsWith('```')) {
+        // ```json 또는 ```로 시작하면 제거
+        cleanedResponse = cleanedResponse
+          .replace(/^```(?:json)?\n?/i, '')  // 시작 코드 블록 제거
+          .replace(/\n?```$/, '')  // 끝 코드 블록 제거
+          .trim()
+      }
+      aiRecommendations = JSON.parse(cleanedResponse)
     } catch (e) {
       console.error('Failed to parse AI response:', e)
+      console.error('Raw AI response:', aiResponse)
     }
 
     // 8. 최종 추천 결과 생성
