@@ -198,7 +198,7 @@ export default function MaterialsPage() {
               <CardTitle>교안 업로드</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="space-y-4">
               <Select
                 label="과목 선택"

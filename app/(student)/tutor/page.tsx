@@ -315,7 +315,7 @@ export default function TutorPage() {
 
         {/* 입력 영역 */}
         <div className="border-t border-[var(--border)] p-4 bg-[var(--surface)]">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -331,7 +331,7 @@ export default function TutorPage() {
               loading={loading}
               leftIcon={<Send className="h-4 w-4" />}
               size="lg"
-              className="self-end"
+              className="shrink-0"
             >
               전송
             </Button>
