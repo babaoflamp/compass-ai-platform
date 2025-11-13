@@ -4,12 +4,13 @@ import { prisma } from '@/lib/db'
 // GET /api/students/[studentId] - 특정 학생의 상세 정보 조회
 export async function GET(
   request: Request,
-  { params }: { params: { studentId: string } }
+  { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const { studentId } = await params
     const student = await prisma.student.findUnique({
       where: {
-        studentId: params.studentId,
+        studentId,
       },
       include: {
         enrollments: {

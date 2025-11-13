@@ -1,6 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Bot, User as UserIcon, Send, BookOpen, Info, TrendingUp, Sparkles } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Textarea } from '@/components/ui/Textarea'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -50,21 +58,23 @@ export default function TutorPage() {
           setSelectedStudentId(data.students[0].studentId)
         }
       })
-      .catch((err) => console.error('Failed to fetch students:', err))
+      .catch((err) => {
+        console.error('Failed to fetch students:', err)
+        toast.error('학생 목록을 불러올 수 없습니다.')
+      })
   }, [])
 
-  // 과목 목록 가져오기 (seed 데이터)
+  // 과목 목록 가져오기
   useEffect(() => {
-    fetch('/api/students') // 임시로 students API 사용
-      .then(() => {
-        // 하드코딩된 과목 목록 (실제로는 별도 API 필요)
-        setCourses([
-          { id: 1, code: 'CS101', name: '프로그래밍 기초' },
-          { id: 2, code: 'CS201', name: '자료구조' },
-          { id: 3, code: 'CS301', name: '데이터베이스 시스템' },
-        ])
+    fetch('/api/courses')
+      .then((res) => res.json())
+      .then((data) => {
+        setCourses(data)
       })
-      .catch((err) => console.error('Failed to fetch courses:', err))
+      .catch((err) => {
+        console.error('Failed to fetch courses:', err)
+        toast.error('과목 목록을 불러올 수 없습니다.')
+      })
   }, [])
 
   // 질문 전송
@@ -105,6 +115,7 @@ export default function TutorPage() {
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error('Failed to send message:', error)
+      toast.error('질문 전송에 실패했습니다.')
       setMessages((prev) => [
         ...prev,
         {
@@ -125,160 +136,214 @@ export default function TutorPage() {
     }
   }
 
+  // 신뢰도 Badge
+  const getConfidenceBadge = (confidence: number) => {
+    if (confidence >= 80) return { variant: 'success' as const, label: '높음' }
+    if (confidence >= 60) return { variant: 'primary' as const, label: '중간' }
+    return { variant: 'warning' as const, label: '낮음' }
+  }
+
+  // 데이터 없음
+  if (students.length === 0) {
+    return (
+      <EmptyState
+        icon={UserIcon}
+        title="등록된 학생 데이터가 없습니다"
+        description="CSV 파일을 업로드하여 학생 데이터를 추가해주세요"
+        action={{
+          label: '학생 데이터 업로드하기',
+          onClick: () => (window.location.href = '/upload'),
+          icon: TrendingUp,
+        }}
+      />
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-5xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">💬 AI 튜터</h1>
-          <p className="text-gray-600">
-            AI 튜터에게 학습 질문을 하고 답변을 받아보세요
-          </p>
-        </div>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in h-[calc(100vh-120px)] flex flex-col">
+      {/* Header */}
+      <div className="px-2 sm:px-0">
+        <h1 className="text-h2 sm:text-h1 text-[var(--foreground)] mb-2">AI 튜터</h1>
+        <p className="text-body text-[var(--foreground-muted)]">
+          AI 튜터에게 학습 질문을 하고 답변을 받아보세요
+        </p>
+      </div>
 
-        {/* 설정 */}
-        <div className="bg-white rounded-lg shadow p-4 mb-4">
+      {/* 설정 */}
+      <Card variant="elevated">
+        <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                학생 선택
-              </label>
-              <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {students.map((student) => (
-                  <option key={student.id} value={student.studentId}>
-                    {student.name} ({student.studentId})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                과목 선택 (선택사항)
-              </label>
-              <select
-                value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">전체 과목</option>
-                {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.code} - {course.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="학생 선택"
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              options={students.map((s) => ({
+                value: s.studentId,
+                label: `${s.name} (${s.studentId})`,
+              }))}
+            />
+            <Select
+              label="과목 선택 (선택사항)"
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              options={[
+                { value: '', label: '전체 과목' },
+                ...courses.map((c) => ({
+                  value: c.id.toString(),
+                  label: `${c.code} - ${c.name}`,
+                })),
+              ]}
+            />
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* 채팅 영역 */}
-        <div className="bg-white rounded-lg shadow flex flex-col" style={{ height: '600px' }}>
-          {/* 메시지 목록 */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center text-gray-500 mt-20">
-                <div className="text-6xl mb-4">🤖</div>
-                <p className="text-lg">AI 튜터에게 질문해보세요!</p>
-                <p className="text-sm mt-2">
+      {/* 채팅 영역 */}
+      <Card variant="elevated" className="flex-1 flex flex-col overflow-hidden">
+        {/* 메시지 목록 */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+          {messages.length === 0 && (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
+                  <Bot className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-h3 text-[var(--foreground)] mb-2">
+                  AI 튜터에게 질문해보세요!
+                </h3>
+                <p className="text-body text-[var(--foreground-muted)]">
                   예: "선형회귀와 로지스틱 회귀의 차이는 무엇인가요?"
                 </p>
               </div>
-            )}
+            </div>
+          )}
 
-            {messages.map((message, index) => (
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
+            >
+              {/* Avatar */}
+              {message.role === 'assistant' && (
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-5 w-5 text-white" />
+                </div>
+              )}
+
+              {/* Message Bubble */}
               <div
-                key={index}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`max-w-[90%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl p-3 sm:p-4 ${
+                  message.role === 'user'
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--surface-variant)] text-[var(--foreground)]'
+                }`}
               >
-                <div
-                  className={`max-w-[80%] rounded-lg p-4 ${
-                    message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
+                <div className="whitespace-pre-wrap text-body">{message.content}</div>
 
-                  {/* AI 답변의 출처 및 신뢰도 */}
-                  {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-300">
-                      <div className="text-xs text-gray-600 mb-2">
-                        📚 참고 자료 ({message.sources.length}개)
+                {/* AI 답변의 출처 및 신뢰도 */}
+                {message.role === 'assistant' &&
+                  (message.sources?.length ?? 0) > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BookOpen className="h-4 w-4 text-[var(--primary)]" />
+                        <span className="text-label text-[var(--foreground)]">
+                          참고 자료 ({message.sources?.length}개)
+                        </span>
                       </div>
-                      {message.sources.map((source, idx) => (
-                        <div key={idx} className="text-xs text-gray-700 mb-1">
-                          • {source.title}
-                        </div>
-                      ))}
+                      <div className="space-y-1">
+                        {message.sources?.map((source, idx) => (
+                          <div
+                            key={idx}
+                            className="text-caption text-[var(--foreground-muted)] pl-6"
+                          >
+                            • {source.title}
+                          </div>
+                        ))}
+                      </div>
                       {message.confidence !== undefined && (
-                        <div className="text-xs text-gray-600 mt-2">
-                          신뢰도: {message.confidence}%
+                        <div className="flex items-center gap-2 mt-3">
+                          <Info className="h-3 w-3 text-[var(--foreground-muted)]" />
+                          <span className="text-caption text-[var(--foreground-muted)]">
+                            신뢰도:
+                          </span>
+                          <Badge
+                            variant={getConfidenceBadge(message.confidence).variant}
+                            size="sm"
+                          >
+                            {message.confidence}% (
+                            {getConfidenceBadge(message.confidence).label})
+                          </Badge>
                         </div>
                       )}
                     </div>
                   )}
+              </div>
+
+              {/* User Avatar */}
+              {message.role === 'user' && (
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="h-5 w-5 text-white" />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing Indicator */}
+          {loading && (
+            <div className="flex gap-3 justify-start animate-fade-in">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                <Bot className="h-5 w-5 text-white" />
+              </div>
+              <div className="bg-[var(--surface-variant)] rounded-2xl p-4">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce" />
+                  <div
+                    className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce"
+                    style={{ animationDelay: '0.2s' }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce"
+                    style={{ animationDelay: '0.4s' }}
+                  />
                 </div>
               </div>
-            ))}
-
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* 입력 영역 */}
-          <div className="border-t border-gray-200 p-4">
-            <div className="flex gap-2">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                rows={2}
-                disabled={loading || !selectedStudentId}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!input.trim() || loading || !selectedStudentId}
-                className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                  !input.trim() || loading || !selectedStudentId
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                전송
-              </button>
             </div>
-            <div className="text-xs text-gray-500 mt-2">
-              💡 교안에 기반한 답변을 제공합니다. 교안에 없는 내용은 답변할 수 없습니다.
-            </div>
-          </div>
+          )}
+
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* 데이터 없음 경고 */}
-        {students.length === 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
-            <p className="text-yellow-800">
-              등록된 학생이 없습니다. 먼저 학생 데이터를 업로드하세요.
+        {/* 입력 영역 */}
+        <div className="border-t border-[var(--border)] p-4 bg-[var(--surface)]">
+          <div className="flex gap-2">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
+              rows={2}
+              disabled={loading || !selectedStudentId}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || loading || !selectedStudentId}
+              loading={loading}
+              leftIcon={<Send className="h-4 w-4" />}
+              size="lg"
+              className="self-end"
+            >
+              전송
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <Sparkles className="h-3 w-3 text-[var(--primary)]" />
+            <p className="text-caption text-[var(--foreground-muted)]">
+              교안에 기반한 답변을 제공합니다. 교안에 없는 내용은 답변할 수 없습니다.
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

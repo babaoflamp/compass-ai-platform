@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { openai } from '@/lib/openai'
+import { chatCompletion, checkOllamaHealth, trackTokenUsage } from '@/lib/ollama'
 
 export async function POST(request: Request) {
   try {
@@ -65,9 +65,10 @@ export async function POST(request: Request) {
     // 6. 상위 5개 과목 선택
     const topCourses = coursesWithScores.slice(0, 5)
 
-    // 7. OpenAI로 추천 사유 생성
-    if (!process.env.OPENAI_API_KEY) {
-      // OpenAI API 키가 없으면 기본 추천만 반환
+    // 7. Ollama 서버 연결 확인
+    const isOllamaHealthy = await checkOllamaHealth()
+    if (!isOllamaHealthy) {
+      // Ollama 서버가 없으면 기본 추천만 반환
       const recommendations = topCourses.map((course, index) => ({
         rank: index + 1,
         course: {
@@ -88,11 +89,11 @@ export async function POST(request: Request) {
           competencies,
         },
         recommendations,
-        note: 'OpenAI API 키가 설정되지 않아 기본 추천을 제공합니다.',
+        note: 'Ollama 서버에 연결할 수 없어 기본 추천을 제공합니다.',
       })
     }
 
-    // OpenAI로 추천 사유 생성
+    // 8. Ollama로 추천 사유 생성
     const prompt = `당신은 대학교 학습 어드바이저입니다. 다음 학생 정보를 보고 추천된 과목에 대한 간단한 추천 사유를 생성하세요.
 
 학생 정보:
@@ -115,23 +116,29 @@ ${topCourses.map((c, i) => `${i + 1}. ${c.name} (${c.code}) - 매칭 점수: ${c
   ]
 }`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: '당신은 학생의 역량에 맞는 과목을 추천하는 전문 어드바이저입니다. 간결하고 명확하게 추천 사유를 설명하세요.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
+    const completion = await chatCompletion([
+      {
+        role: 'system',
+        content: '당신은 학생의 역량에 맞는 과목을 추천하는 전문 어드바이저입니다. 간결하고 명확하게 추천 사유를 설명하세요.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ], {
       temperature: 0.7,
-      max_tokens: 800,
+      maxTokens: 800,
     })
 
-    const aiResponse = completion.choices[0].message.content || '{}'
+    // 토큰 사용량 추적
+    await trackTokenUsage(
+      completion.usage.promptTokens,
+      completion.usage.completionTokens,
+      'recommend',
+      completion.model
+    )
+
+    const aiResponse = completion.content || '{}'
 
     // JSON 파싱 시도
     let aiRecommendations: any = { recommendations: [] }

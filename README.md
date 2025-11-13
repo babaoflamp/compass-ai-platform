@@ -25,7 +25,7 @@ COMPASS는 대학교 학습자와 교수자를 위한 AI 기반 학습 지원 �
 
 - Node.js 18.0 이상
 - npm 또는 yarn
-- OpenAI API Key
+- Ollama 서버 (exaone3.5:7.8b 모델)
 
 ### 설치
 
@@ -39,12 +39,17 @@ npm install
 
 # 3. 환경 변수 설정
 cp .env.example .env
-# .env 파일에서 OPENAI_API_KEY 설정
+# .env 파일에서 OLLAMA_URL 및 OLLAMA_MODEL 설정
 
-# 4. 데이터베이스 초기화 (이미 완료됨)
-npx prisma migrate dev
+# 4. 데이터베이스 초기화
+npx prisma generate         # Prisma Client 생성
+npx prisma migrate dev      # 마이그레이션 적용
+npx prisma db seed         # 샘플 데이터 시드 (선택사항)
 
-# 5. 개발 서버 실행
+# 5. Ollama 서버 시작 (별도 터미널)
+docker exec ollama ollama pull exaone3.5:7.8b
+
+# 6. 개발 서버 실행
 npm run dev
 ```
 
@@ -78,7 +83,7 @@ compass-ai-platform/
 │   └── charts/             # 차트 컴포넌트
 ├── lib/                     # 유틸리티 라이브러리
 │   ├── db.ts               # Prisma 클라이언트
-│   └── openai.ts           # OpenAI 클라이언트
+│   └── ollama.ts           # Ollama 클라이언트
 ├── prisma/                  # Prisma 스키마
 │   ├── schema.prisma
 │   ├── migrations/
@@ -99,8 +104,8 @@ compass-ai-platform/
 | Frontend | Next.js 15 (App Router), React 19, TypeScript |
 | Styling | Tailwind CSS v4 |
 | Database | SQLite (개발), PostgreSQL (프로덕션) |
-| ORM | Prisma |
-| AI/LLM | OpenAI API (GPT-4o-mini) |
+| ORM | Prisma 6 |
+| AI/LLM | Ollama (exaone3.5:7.8b, 로컬 LLM) |
 | Charts | Recharts |
 | Deployment | Vercel (권장) |
 
@@ -127,7 +132,12 @@ compass-ai-platform/
 ```env
 # .env
 DATABASE_URL="file:./dev.db"
-OPENAI_API_KEY="sk-your-api-key-here"
+
+# Ollama 설정 (로컬 LLM)
+OLLAMA_URL="http://localhost:11434"
+OLLAMA_MODEL="exaone3.5:7.8b"
+
+# 인증 (추후 구현)
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="http://localhost:3000"
 ```
@@ -168,17 +178,19 @@ npx prisma db seed
 - [x] Next.js 프로젝트 생성
 - [x] Prisma + SQLite 설정
 - [x] 기본 디렉토리 구조
-- [x] OpenAI API 연동 준비
+- [x] Ollama API 연동 준비
 
-### 🚧 Phase 1: 핵심 기능 (진행 중)
-- [ ] 학생 역량 대시보드 UI
-- [ ] CSV 데이터 업로드 기능
-- [ ] 역량 시각화 차트
+### ✅ Phase 1: 핵심 기능 (완료)
+- [x] 학생 역량 대시보드 UI
+- [x] CSV 데이터 업로드 기능
+- [x] 역량 시각화 차트 (레이더 차트)
+- [x] 수강 이력 조회
 
-### 📅 Phase 2: AI 기능
-- [ ] OpenAI 기반 과목 추천 API
-- [ ] RAG 기반 AI 튜터 채팅
-- [ ] 교안 PDF 파싱 및 임베딩
+### ✅ Phase 2: AI 기능 (완료)
+- [x] Ollama 기반 과목 추천 API
+- [x] RAG 기반 AI 튜터 채팅
+- [x] 교안 TXT 업로드 (PDF는 추후 구현)
+- [x] 토큰 사용량 추적 (UsageStats)
 
 ### 📅 Phase 3: 관리 기능
 - [ ] 사용 통계 대시보드
@@ -198,28 +210,24 @@ npx prisma db seed
 
 ## 📊 비용 예상 (MVP)
 
-### OpenAI API 비용 (GPT-4o-mini)
-- 입력: $0.150 / 1M 토큰
-- 출력: $0.600 / 1M 토큰
+### Ollama (로컬 LLM) 비용
+- **AI 추론 비용**: **$0** (로컬 서버에서 실행)
+- **GPU 요구사항**: NVIDIA GPU 권장 (CPU도 가능하나 느림)
+- **모델 크기**: exaone3.5:7.8b (약 4.4GB)
 
-**예상 사용량** (학생 100명, 월간):
-- 과목 추천: 100 요청 × 500 토큰 = 50,000 토큰 → **$0.03**
-- AI 튜터: 500 대화 × 1,000 토큰 = 500,000 토큰 → **$0.38**
-- **월 총액: ~$0.50**
+**장점**:
+- ✅ 완전 무료 (API 비용 없음)
+- ✅ 데이터 프라이버시 보장
+- ✅ 인터넷 없이도 작동
+
+**단점**:
+- ⚠️ 서버 리소스 필요
+- ⚠️ 응답 속도가 클라우드 LLM보다 느릴 수 있음
 
 ### 호스팅 비용
 - **Vercel Hobby**: 무료 (개인/학교 프로젝트)
 - **Vercel Pro**: $20/월 (상용)
-
----
-
-## 🤝 기여 가이드
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+- **Ollama 서버**: 자체 서버 또는 클라우드 VM 필요
 
 ---
 
@@ -232,16 +240,6 @@ MIT License
 ## 📞 문의
 
 프로젝트 관련 문의: [이메일 주소]
-
----
-
-## 🙏 감사
-
-- [Next.js](https://nextjs.org/)
-- [Prisma](https://www.prisma.io/)
-- [OpenAI](https://openai.com/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Recharts](https://recharts.org/)
 
 ---
 

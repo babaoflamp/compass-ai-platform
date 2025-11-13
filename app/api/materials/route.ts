@@ -1,15 +1,26 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { openai } from '@/lib/openai'
 
-// POST /api/materials - 교안 업로드 및 임베딩 생성
+// POST /api/materials - 교안 업로드 (PDF 파일 또는 텍스트)
 export async function POST(request: Request) {
   try {
-    const { courseId, title, content } = await request.json()
+    const formData = await request.formData()
 
-    if (!courseId || !title || !content) {
+    const courseId = formData.get('courseId') as string
+    const title = formData.get('title') as string
+    const file = formData.get('file') as File | null
+    const textContent = formData.get('content') as string | null
+
+    if (!courseId || !title) {
       return NextResponse.json(
-        { error: 'Course ID, title, and content are required' },
+        { error: 'Course ID and title are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!file && !textContent) {
+      return NextResponse.json(
+        { error: 'Either file or content is required' },
         { status: 400 }
       )
     }
@@ -26,30 +37,54 @@ export async function POST(request: Request) {
       )
     }
 
-    // OpenAI embeddings 생성 (옵션)
-    let embeddingId = null
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const embedding = await openai.embeddings.create({
-          model: 'text-embedding-3-small',
-          input: content.substring(0, 8000), // 토큰 제한
-        })
-        // 임베딩 ID는 단순히 생성된 타임스탬프로 사용
-        embeddingId = `emb_${Date.now()}`
-      } catch (e) {
-        console.error('Embedding creation failed:', e)
-        // 임베딩 실패해도 계속 진행
+    let content = ''
+    let filename = `${title}.txt`
+
+    // TXT 파일 업로드된 경우
+    if (file) {
+      // TXT 파일인지 확인
+      if (!file.type.includes('text/') && !file.name.endsWith('.txt')) {
+        return NextResponse.json(
+          { error: 'Only text files (.txt) are supported' },
+          { status: 400 }
+        )
       }
+
+      try {
+        // 텍스트 파일 읽기
+        content = await file.text()
+
+        if (!content || content.trim().length === 0) {
+          return NextResponse.json(
+            { error: 'Text file is empty' },
+            { status: 400 }
+          )
+        }
+
+        filename = file.name
+      } catch (fileError) {
+        console.error('File reading error:', fileError)
+        return NextResponse.json(
+          {
+            error: 'Failed to read text file',
+            details: fileError instanceof Error ? fileError.message : 'Unknown error'
+          },
+          { status: 400 }
+        )
+      }
+    } else {
+      // 텍스트 직접 입력된 경우
+      content = textContent!
     }
 
-    // DB에 교안 저장
+    // DB에 교안 저장 (임베딩 생성 제거, MVP에서는 키워드 검색만 사용)
     const material = await prisma.courseMaterial.create({
       data: {
         courseId: parseInt(courseId),
-        filename: `${title}.txt`,
+        filename,
         title,
         content,
-        embeddingId,
+        embeddingId: null, // MVP에서는 벡터 임베딩 미사용
       },
     })
 
@@ -58,7 +93,9 @@ export async function POST(request: Request) {
       material: {
         id: material.id,
         title: material.title,
+        filename: material.filename,
         courseId: material.courseId,
+        contentLength: content.length,
       },
     })
   } catch (error) {

@@ -69,7 +69,7 @@ export async function POST(request: Request) {
         failedCount++
         if (error instanceof z.ZodError) {
           errors.push(
-            `Row ${i + 1}: ${error.errors.map((e) => e.message).join(', ')}`
+            `Row ${i + 1}: ${error.issues.map((e) => e.message).join(', ')}`
           )
         } else {
           errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)

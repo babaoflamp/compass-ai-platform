@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { inter, notoSansKr } from "@/lib/fonts";
+import { ToastProvider } from "@/components/providers/ToastProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,9 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={`${inter.variable} ${notoSansKr.variable}`}>
       <body className="antialiased">
         {children}
+        <ToastProvider />
       </body>
     </html>
   );

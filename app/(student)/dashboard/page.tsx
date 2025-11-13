@@ -1,8 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { User, Lightbulb, Users, Target, BookOpen, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
+import toast from 'react-hot-toast'
 import CompetencyChart from '@/components/charts/CompetencyChart'
-import CompetencyScoreCard from '@/components/CompetencyScoreCard'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Select'
+import { Badge } from '@/components/ui/Badge'
+import { Loading } from '@/components/ui/Loading'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 
 interface Student {
   id: number
@@ -48,7 +56,6 @@ export default function DashboardPage() {
       .then((res) => res.json())
       .then((data) => {
         setStudents(data.students)
-        // 첫 번째 학생 자동 선택
         if (data.students.length > 0) {
           setSelectedStudentId(data.students[0].studentId)
         }
@@ -56,6 +63,7 @@ export default function DashboardPage() {
       .catch((err) => {
         console.error('Failed to fetch students:', err)
         setError('학생 목록을 불러올 수 없습니다.')
+        toast.error('학생 목록을 불러올 수 없습니다.')
       })
   }, [])
 
@@ -78,6 +86,7 @@ export default function DashboardPage() {
       .catch((err) => {
         console.error('Failed to fetch student detail:', err)
         setError('학생 정보를 불러올 수 없습니다.')
+        toast.error('학생 정보를 불러올 수 없습니다.')
         setLoading(false)
       })
   }, [selectedStudentId])
@@ -92,146 +101,257 @@ export default function DashboardPage() {
       )
     : 0
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">📊 역량 대시보드</h1>
-          <p className="text-gray-600">학습자의 핵심 역량을 분석하고 시각화합니다</p>
-        </div>
+  // 점수에 따른 Badge variant
+  const getScoreBadge = (score: number) => {
+    if (score >= 80) return { variant: 'success' as const, label: '우수' }
+    if (score >= 60) return { variant: 'primary' as const, label: '양호' }
+    if (score >= 40) return { variant: 'warning' as const, label: '보통' }
+    return { variant: 'error' as const, label: '개선필요' }
+  }
 
-        {/* 학생 선택 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            학생 선택
-          </label>
-          <select
+  // 데이터 없음
+  if (!loading && students.length === 0) {
+    return (
+      <EmptyState
+        icon={User}
+        title="등록된 학생 데이터가 없습니다"
+        description="CSV 파일을 업로드하여 학생 데이터를 추가해주세요"
+        action={{
+          label: '학생 데이터 업로드하기',
+          onClick: () => (window.location.href = '/upload'),
+          icon: TrendingUp,
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="px-2 sm:px-0">
+        <h1 className="text-h2 sm:text-h1 text-[var(--foreground)] mb-2">역량 대시보드</h1>
+        <p className="text-body text-[var(--foreground-muted)]">
+          학습자의 핵심 역량을 분석하고 시각화합니다
+        </p>
+      </div>
+
+      {/* 학생 선택 */}
+      <Card variant="elevated">
+        <CardContent className="p-6">
+          <Select
+            label="학생 선택"
             value={selectedStudentId}
             onChange={(e) => setSelectedStudentId(e.target.value)}
-            className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {students.map((student) => (
-              <option key={student.id} value={student.studentId}>
-                {student.studentId} - {student.name}
-                {student.department && ` (${student.department})`}
-              </option>
-            ))}
-          </select>
-        </div>
+            options={students.map((s) => ({
+              value: s.studentId,
+              label: `${s.studentId} - ${s.name}${
+                s.department ? ` (${s.department})` : ''
+              }`,
+            }))}
+          />
+        </CardContent>
+      </Card>
 
-        {/* 에러 메시지 */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 mb-6">
-            {error}
-          </div>
-        )}
+      {/* 에러 메시지 */}
+      {error && (
+        <Card variant="outlined" className="border-[var(--error)]">
+          <CardContent className="p-4 bg-[var(--error-light)]">
+            <p className="text-body text-[var(--error)]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* 로딩 */}
-        {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 mt-4">데이터를 불러오는 중...</p>
-          </div>
-        )}
+      {/* 로딩 */}
+      {loading && <Loading size="lg" text="학생 정보를 불러오는 중..." />}
 
-        {/* 학생 정보 및 역량 데이터 */}
-        {!loading && studentDetail && (
-          <>
-            {/* 학생 기본 정보 */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {studentDetail.name}
-                  </h2>
-                  <div className="flex gap-4 mt-2 text-sm text-gray-600">
-                    <span>학번: {studentDetail.studentId}</span>
-                    {studentDetail.department && (
-                      <span>학과: {studentDetail.department}</span>
-                    )}
-                    {studentDetail.grade && <span>{studentDetail.grade}학년</span>}
+      {/* 학생 정보 및 역량 데이터 */}
+      {!loading && studentDetail && (
+        <>
+          {/* 학생 기본 정보 카드 */}
+          <Card variant="elevated">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                    <User className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-h3 sm:text-h2 text-[var(--foreground)]">
+                      {studentDetail.name}
+                    </h2>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Badge variant="neutral" size="sm">{studentDetail.studentId}</Badge>
+                      {studentDetail.department && (
+                        <Badge variant="neutral" size="sm">{studentDetail.department}</Badge>
+                      )}
+                      {studentDetail.grade && (
+                        <Badge variant="neutral" size="sm">{studentDetail.grade}학년</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-600">종합 평균</div>
-                  <div className="text-4xl font-bold text-blue-600">
-                    {averageScore}점
-                  </div>
+                <div className="text-center md:text-right">
+                  <p className="text-caption text-[var(--foreground-muted)] mb-1">
+                    종합 평균
+                  </p>
+                  <p className="text-h1 sm:text-display text-[var(--primary)]">{averageScore}</p>
+                  <Badge
+                    variant={getScoreBadge(averageScore).variant}
+                    size="sm"
+                    className="mt-2"
+                  >
+                    {getScoreBadge(averageScore).label}
+                  </Badge>
                 </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* 역량 점수 카드 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <CompetencyScoreCard
-                label="창의성"
-                score={studentDetail.competencies.creativity}
-                icon="💡"
-              />
-              <CompetencyScoreCard
-                label="협업능력"
-                score={studentDetail.competencies.collaboration}
-                icon="🤝"
-              />
-              <CompetencyScoreCard
-                label="문제해결"
-                score={studentDetail.competencies.problemSolving}
-                icon="🎯"
-              />
-            </div>
+          {/* 역량 점수 카드 그리드 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            {/* 창의성 */}
+            <Card variant="elevated" className="transition-all hover:scale-[1.02]">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                    <Lightbulb className="h-6 w-6 text-white" />
+                  </div>
+                  <Badge variant={getScoreBadge(studentDetail.competencies.creativity).variant}>
+                    {getScoreBadge(studentDetail.competencies.creativity).label}
+                  </Badge>
+                </div>
+                <h3 className="text-h4 text-[var(--foreground)] mb-1">창의성</h3>
+                <p className="text-display text-[var(--primary)]">
+                  {studentDetail.competencies.creativity}
+                </p>
+                <div className="mt-3 h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
+                    style={{ width: `${studentDetail.competencies.creativity}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-            {/* 레이더 차트 */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                역량 분석 차트
-              </h3>
+            {/* 협업능력 */}
+            <Card variant="elevated" className="transition-all hover:scale-[1.02]">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                  <Badge
+                    variant={
+                      getScoreBadge(studentDetail.competencies.collaboration).variant
+                    }
+                  >
+                    {getScoreBadge(studentDetail.competencies.collaboration).label}
+                  </Badge>
+                </div>
+                <h3 className="text-h4 text-[var(--foreground)] mb-1">협업능력</h3>
+                <p className="text-display text-[var(--primary)]">
+                  {studentDetail.competencies.collaboration}
+                </p>
+                <div className="mt-3 h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500"
+                    style={{ width: `${studentDetail.competencies.collaboration}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 문제해결 */}
+            <Card variant="elevated" className="transition-all hover:scale-[1.02]">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                    <Target className="h-6 w-6 text-white" />
+                  </div>
+                  <Badge
+                    variant={
+                      getScoreBadge(studentDetail.competencies.problemSolving).variant
+                    }
+                  >
+                    {getScoreBadge(studentDetail.competencies.problemSolving).label}
+                  </Badge>
+                </div>
+                <h3 className="text-h4 text-[var(--foreground)] mb-1">문제해결</h3>
+                <p className="text-display text-[var(--primary)]">
+                  {studentDetail.competencies.problemSolving}
+                </p>
+                <div className="mt-3 h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-500"
+                    style={{ width: `${studentDetail.competencies.problemSolving}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 레이더 차트 */}
+          <Card variant="elevated">
+            <CardHeader>
+              <CardTitle>역량 분석 차트</CardTitle>
+            </CardHeader>
+            <CardContent>
               <CompetencyChart data={studentDetail.competencies} />
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* 수강 과목 */}
-            {studentDetail.enrollments.length > 0 && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  수강 이력
-                </h3>
+          {/* 수강 이력 */}
+          {studentDetail.enrollments.length > 0 && (
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>수강 이력</CardTitle>
+                  <Badge variant="neutral">
+                    {studentDetail.enrollments.length}개 과목
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                    <thead>
+                      <tr className="border-b border-[var(--border)]">
+                        <th className="px-4 py-3 text-left text-label text-[var(--foreground)]">
                           학기
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                        <th className="px-4 py-3 text-left text-label text-[var(--foreground)]">
                           과목코드
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                        <th className="px-4 py-3 text-left text-label text-[var(--foreground)]">
                           과목명
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                        <th className="px-4 py-3 text-left text-label text-[var(--foreground)]">
                           학점
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                        <th className="px-4 py-3 text-left text-label text-[var(--foreground)]">
                           성적
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-[var(--border)]">
                       {studentDetail.enrollments.map((enrollment, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                        <tr
+                          key={idx}
+                          className="hover:bg-[var(--surface-variant)] transition-colors"
+                        >
+                          <td className="px-4 py-3 text-body text-[var(--foreground)]">
                             {enrollment.semester}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
+                          <td className="px-4 py-3 text-body text-[var(--foreground-muted)]">
                             {enrollment.course.code}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-body text-[var(--foreground)]">
                             {enrollment.course.name}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
+                          <td className="px-4 py-3 text-body text-[var(--foreground-muted)]">
                             {enrollment.course.credits}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          <td className="px-4 py-3 text-label text-[var(--foreground)]">
                             {enrollment.grade || '-'}
                           </td>
                         </tr>
@@ -239,26 +359,11 @@ export default function DashboardPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 데이터 없음 */}
-        {!loading && students.length === 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-            <p className="text-yellow-800 mb-4">
-              등록된 학생 데이터가 없습니다.
-            </p>
-            <a
-              href="/upload"
-              className="inline-block px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-            >
-              학생 데이터 업로드하기
-            </a>
-          </div>
-        )}
-      </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   )
 }

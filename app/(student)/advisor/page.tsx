@@ -1,6 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Sparkles, User, Lightbulb, Users, Target, BookOpen, TrendingUp, ChevronDown, ChevronUp, Award } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Loading } from '@/components/ui/Loading'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface Student {
   id: number
@@ -43,6 +51,7 @@ export default function AdvisorPage() {
   const [result, setResult] = useState<RecommendationResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedReasons, setExpandedReasons] = useState<Set<number>>(new Set())
 
   // 학생 목록 가져오기
   useEffect(() => {
@@ -56,6 +65,7 @@ export default function AdvisorPage() {
       })
       .catch((err) => {
         console.error('Failed to fetch students:', err)
+        toast.error('학생 목록을 불러올 수 없습니다.')
       })
   }, [])
 
@@ -82,205 +92,306 @@ export default function AdvisorPage() {
 
       const data = await response.json()
       setResult(data)
+      toast.success('AI 추천이 완료되었습니다!')
+
+      // Ollama 서버 미사용 시 알림
+      if (data.note) {
+        toast(data.note, { icon: 'ℹ️', duration: 5000 })
+      }
     } catch (err) {
       setError('추천을 가져오는 중 오류가 발생했습니다.')
+      toast.error('추천을 가져오는 중 오류가 발생했습니다.')
       console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  // 매칭 점수 색상
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600'
-    if (score >= 70) return 'text-blue-600'
-    if (score >= 60) return 'text-yellow-600'
-    return 'text-gray-600'
+  // 추천 사유 토글
+  const toggleReason = (rank: number) => {
+    setExpandedReasons((prev) => {
+      const next = new Set(prev)
+      if (next.has(rank)) {
+        next.delete(rank)
+      } else {
+        next.add(rank)
+      }
+      return next
+    })
   }
 
-  const getScoreBadgeColor = (score: number) => {
-    if (score >= 80) return 'bg-green-100 text-green-700 border-green-300'
-    if (score >= 70) return 'bg-blue-100 text-blue-700 border-blue-300'
-    if (score >= 60) return 'bg-yellow-100 text-yellow-700 border-yellow-300'
-    return 'bg-gray-100 text-gray-700 border-gray-300'
+  // 매칭 점수 Badge variant
+  const getScoreBadge = (score: number) => {
+    if (score >= 80) return { variant: 'success' as const, label: '최적' }
+    if (score >= 70) return { variant: 'primary' as const, label: '우수' }
+    if (score >= 60) return { variant: 'warning' as const, label: '양호' }
+    return { variant: 'neutral' as const, label: '보통' }
+  }
+
+  // 랭크별 색상
+  const getRankColor = (rank: number) => {
+    const colors = [
+      'from-yellow-500 to-yellow-600', // 1위 - 금색
+      'from-gray-400 to-gray-500', // 2위 - 은색
+      'from-orange-600 to-orange-700', // 3위 - 동색
+      'from-blue-500 to-blue-600', // 4위
+      'from-purple-500 to-purple-600', // 5위
+    ]
+    return colors[rank - 1] || 'from-gray-400 to-gray-500'
+  }
+
+  // 데이터 없음
+  if (!loading && students.length === 0) {
+    return (
+      <EmptyState
+        icon={User}
+        title="등록된 학생 데이터가 없습니다"
+        description="CSV 파일을 업로드하여 학생 데이터를 추가해주세요"
+        action={{
+          label: '학생 데이터 업로드하기',
+          onClick: () => (window.location.href = '/upload'),
+          icon: TrendingUp,
+        }}
+      />
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🎯 AI 어드바이저
-          </h1>
-          <p className="text-gray-600">
-            AI가 당신의 역량에 맞는 최적의 과목을 추천해드립니다
-          </p>
-        </div>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="px-2 sm:px-0">
+        <h1 className="text-h2 sm:text-h1 text-[var(--foreground)] mb-2">AI 과목 추천</h1>
+        <p className="text-body text-[var(--foreground-muted)]">
+          AI가 당신의 역량에 맞는 최적의 과목을 추천해드립니다
+        </p>
+      </div>
 
-        {/* 학생 선택 및 추천 요청 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+      {/* 학생 선택 및 추천 요청 */}
+      <Card variant="elevated">
+        <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                학생 선택
-              </label>
-              <select
+              <Select
+                label="학생 선택"
                 value={selectedStudentId}
                 onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {students.map((student) => (
-                  <option key={student.id} value={student.studentId}>
-                    {student.studentId} - {student.name}
-                    {student.department && ` (${student.department})`}
-                  </option>
-                ))}
-              </select>
+                options={students.map((s) => ({
+                  value: s.studentId,
+                  label: `${s.studentId} - ${s.name}${
+                    s.department ? ` (${s.department})` : ''
+                  }`,
+                }))}
+              />
             </div>
             <div className="flex items-end">
-              <button
+              <Button
                 onClick={handleGetRecommendations}
                 disabled={!selectedStudentId || loading}
-                className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                  !selectedStudentId || loading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                loading={loading}
+                leftIcon={<Sparkles className="h-4 w-4" />}
+                size="lg"
               >
-                {loading ? '분석 중...' : 'AI 추천 받기'}
-              </button>
+                AI 추천 받기
+              </Button>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* 에러 메시지 */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 mb-6">
-            {error}
-          </div>
-        )}
+      {/* 에러 메시지 */}
+      {error && (
+        <Card variant="outlined" className="border-[var(--error)]">
+          <CardContent className="p-4 bg-[var(--error-light)]">
+            <p className="text-body text-[var(--error)]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* 로딩 */}
-        {loading && (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-            <p className="text-gray-600">
-              AI가 최적의 과목을 분석하고 있습니다...
-            </p>
-          </div>
-        )}
+      {/* 로딩 */}
+      {loading && <Loading size="lg" text="AI가 최적의 과목을 분석하고 있습니다..." />}
 
-        {/* 추천 결과 */}
-        {!loading && result && (
-          <>
-            {/* 학생 정보 */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                {result.student.name}님의 역량 분석
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-sm text-gray-600 mb-1">💡 창의성</div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {result.student.competencies.creativity}점
+      {/* 추천 결과 */}
+      {!loading && result && (
+        <>
+          {/* 학생 역량 정보 */}
+          <Card variant="elevated">
+            <CardHeader>
+              <CardTitle>{result.student.name}님의 역량 분석</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                {/* 창의성 */}
+                <div className="flex items-center gap-3 p-3 sm:p-4 rounded-lg bg-[var(--surface-variant)]">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <Lightbulb className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-caption text-[var(--foreground-muted)]">창의성</p>
+                    <p className="text-h3 text-[var(--primary)]">
+                      {result.student.competencies.creativity}
+                    </p>
                   </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600 mb-1">🤝 협업능력</div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {result.student.competencies.collaboration}점
+
+                {/* 협업능력 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--surface-variant)]">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0">
+                    <Users className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-caption text-[var(--foreground-muted)]">협업능력</p>
+                    <p className="text-h3 text-[var(--primary)]">
+                      {result.student.competencies.collaboration}
+                    </p>
                   </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600 mb-1">🎯 문제해결</div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {result.student.competencies.problemSolving}점
+
+                {/* 문제해결 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--surface-variant)]">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                    <Target className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-caption text-[var(--foreground-muted)]">문제해결</p>
+                    <p className="text-h3 text-[var(--primary)]">
+                      {result.student.competencies.problemSolving}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* 경고 메시지 (OpenAI 키 없을 때) */}
-            {result.note && (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4 mb-6">
-                ℹ️ {result.note}
-              </div>
-            )}
+          {/* 경고 메시지 (Ollama 메시지) */}
+          {result.note && (
+            <Card variant="outlined" className="border-[var(--warning)]">
+              <CardContent className="p-4 bg-[var(--warning-light)]">
+                <div className="flex gap-2">
+                  <span className="text-[var(--warning)]">ℹ️</span>
+                  <p className="text-body text-[var(--warning)]">{result.note}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            {/* 추천 과목 리스트 */}
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-gray-900">
-                추천 과목 (Top 5)
-              </h2>
+          {/* 추천 과목 타이틀 */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-h2 text-[var(--foreground)]">추천 과목</h2>
+            <Badge variant="primary" size="lg">
+              <Award className="h-3 w-3" />
+              Top 5
+            </Badge>
+          </div>
 
-              {result.recommendations.map((rec) => (
-                <div
-                  key={rec.rank}
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                          <span className="text-xl font-bold text-blue-600">
-                            {rec.rank}
-                          </span>
-                        </div>
+          {/* 추천 과목 그리드 */}
+          <div className="grid grid-cols-1 gap-4">
+            {result.recommendations.map((rec) => (
+              <Card
+                key={rec.rank}
+                variant="elevated"
+                className="transition-all hover:scale-[1.01]"
+              >
+                <CardContent className="p-4 sm:p-6">
+                  {/* 헤더 */}
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                    <div className="flex items-start gap-3 sm:gap-4 flex-1">
+                      {/* 랭크 뱃지 */}
+                      <div
+                        className={`h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-gradient-to-br ${getRankColor(rec.rank)} flex items-center justify-center flex-shrink-0`}
+                      >
+                        <span className="text-lg sm:text-xl font-bold text-white">{rec.rank}</span>
                       </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900">
+
+                      {/* 과목 정보 */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-h4 sm:text-h3 text-[var(--foreground)] mb-2">
                           {rec.course.name}
                         </h3>
-                        <p className="text-sm text-gray-600">
-                          {rec.course.code} · {rec.course.department} ·{' '}
-                          {rec.course.credits}학점
-                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="neutral" size="sm">
+                            {rec.course.code}
+                          </Badge>
+                          {rec.course.department && (
+                            <Badge variant="neutral" size="sm">
+                              {rec.course.department}
+                            </Badge>
+                          )}
+                          {rec.course.credits && (
+                            <Badge variant="neutral" size="sm">
+                              {rec.course.credits}학점
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div
-                      className={`px-3 py-1 rounded-full border font-semibold text-sm ${getScoreBadgeColor(rec.matchScore)}`}
-                    >
-                      매칭 {rec.matchScore.toFixed(1)}%
+
+                    {/* 매칭 점수 */}
+                    <div className="text-center sm:text-right flex-shrink-0 sm:ml-4">
+                      <p className="text-caption text-[var(--foreground-muted)] mb-1">
+                        매칭도
+                      </p>
+                      <p className="text-h2 text-[var(--primary)] mb-1">
+                        {rec.matchScore.toFixed(1)}%
+                      </p>
+                      <Badge
+                        variant={getScoreBadge(rec.matchScore).variant}
+                        size="sm"
+                      >
+                        {getScoreBadge(rec.matchScore).label}
+                      </Badge>
                     </div>
                   </div>
 
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full bg-gradient-to-r ${getRankColor(rec.rank)} transition-all duration-500`}
+                        style={{ width: `${rec.matchScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 과목 설명 */}
                   {rec.course.description && (
-                    <p className="text-gray-700 mb-4">
+                    <p className="text-body text-[var(--foreground-muted)] mb-4">
                       {rec.course.description}
                     </p>
                   )}
 
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-                    <div className="flex items-start gap-2">
-                      <span className="text-blue-600 font-semibold">💡</span>
-                      <div>
-                        <div className="text-sm font-semibold text-blue-900 mb-1">
+                  {/* AI 추천 사유 (Expandable) */}
+                  <div className="border-t border-[var(--border)] pt-4">
+                    <button
+                      onClick={() => toggleReason(rec.rank)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-[var(--surface-variant)] transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-[var(--primary)]" />
+                        <span className="text-label text-[var(--foreground)]">
                           AI 추천 사유
-                        </div>
-                        <p className="text-sm text-blue-800">{rec.reason}</p>
+                        </span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+                      {expandedReasons.has(rec.rank) ? (
+                        <ChevronUp className="h-4 w-4 text-[var(--foreground-muted)]" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-[var(--foreground-muted)]" />
+                      )}
+                    </button>
 
-        {/* 데이터 없음 */}
-        {!loading && !result && students.length === 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-            <p className="text-yellow-800 mb-4">등록된 학생 데이터가 없습니다.</p>
-            <a
-              href="/upload"
-              className="inline-block px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-            >
-              학생 데이터 업로드하기
-            </a>
+                    {expandedReasons.has(rec.rank) && (
+                      <div className="mt-3 p-4 bg-[var(--primary-light)] rounded-lg border-l-4 border-[var(--primary)] animate-scale-in">
+                        <p className="text-body text-[var(--foreground)]">
+                          {rec.reason}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }

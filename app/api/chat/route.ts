@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { openai } from '@/lib/openai'
+import { chatCompletion, checkOllamaHealth, trackTokenUsage } from '@/lib/ollama'
 
 // 간단한 텍스트 유사도 검색 (키워드 기반)
 function simpleSearch(query: string, materials: any[]): any[] {
@@ -37,12 +37,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // OpenAI API 키 확인
-    if (!process.env.OPENAI_API_KEY) {
+    // Ollama 서버 연결 확인
+    const isOllamaHealthy = await checkOllamaHealth()
+    if (!isOllamaHealthy) {
       return NextResponse.json(
         {
-          error: 'OpenAI API key is not configured',
-          answer: 'OpenAI API 키가 설정되지 않았습니다. 관리자에게 문의하세요.',
+          error: 'Ollama server is not available',
+          answer: 'Ollama 서버에 연결할 수 없습니다. 관리자에게 문의하세요.',
         },
         { status: 503 }
       )
@@ -101,28 +102,34 @@ export async function POST(request: Request) {
       )
       .join('\n\n---\n\n')
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `당신은 대학교 AI 튜터입니다. 제공된 교안 자료만을 사용하여 학생의 질문에 답변하세요.
+    const completion = await chatCompletion([
+      {
+        role: 'system',
+        content: `당신은 대학교 AI 튜터입니다. 제공된 교안 자료만을 사용하여 학생의 질문에 답변하세요.
 규칙:
 1. 교안에 없는 내용은 답변하지 마세요
 2. 답변 시 출처를 명시하세요 (예: "[출처 1 참조]")
 3. 간결하고 명확하게 설명하세요
 4. 교안에 정보가 부족하면 "교안에 해당 내용이 없습니다"라고 답변하세요`,
-        },
-        {
-          role: 'user',
-          content: `다음은 관련 교안 내용입니다:\n\n${context}\n\n질문: ${question}`,
-        },
-      ],
+      },
+      {
+        role: 'user',
+        content: `다음은 관련 교안 내용입니다:\n\n${context}\n\n질문: ${question}`,
+      },
+    ], {
       temperature: 0.3,
-      max_tokens: 800,
+      maxTokens: 800,
     })
 
-    const answer = completion.choices[0].message.content || '답변을 생성할 수 없습니다.'
+    // 토큰 사용량 추적
+    await trackTokenUsage(
+      completion.usage.promptTokens,
+      completion.usage.completionTokens,
+      'chat',
+      completion.model
+    )
+
+    const answer = completion.content || '답변을 생성할 수 없습니다.'
 
     // 신뢰도 계산 (간단한 버전: 관련 교안 개수 기반)
     const confidence = Math.min(relevantMaterials.length / 3, 1) * 100
