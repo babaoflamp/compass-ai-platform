@@ -143,15 +143,21 @@ ${topCourses.map((c, i) => `${i + 1}. ${c.name} (${c.code}) - 매칭 점수: ${c
     // JSON 파싱 시도 (마크다운 코드 블록 제거)
     let aiRecommendations: any = { recommendations: [] }
     try {
-      // 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
+      // 마크다운 코드 블록 제거 - 더 강력한 방법
       let cleanedResponse = aiResponse.trim()
-      if (cleanedResponse.startsWith('```')) {
-        // ```json 또는 ```로 시작하면 제거
-        cleanedResponse = cleanedResponse
-          .replace(/^```(?:json)?\n?/i, '')  // 시작 코드 블록 제거
-          .replace(/\n?```$/, '')  // 끝 코드 블록 제거
-          .trim()
+
+      // ``` 사이의 내용만 추출 (마크다운 코드 블록)
+      const codeBlockMatch = cleanedResponse.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+      if (codeBlockMatch) {
+        cleanedResponse = codeBlockMatch[1].trim()
       }
+
+      // 혹시 JSON 객체가 다른 텍스트와 섞여 있을 경우를 대비해 { ... } 추출
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0]
+      }
+
       aiRecommendations = JSON.parse(cleanedResponse)
     } catch (e) {
       console.error('Failed to parse AI response:', e)
